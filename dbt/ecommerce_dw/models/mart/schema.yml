@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: mart_daily_sales
+    description: "Daily sales mart by sales_date and category. Grain: one row per sales_date and category_id."
+    columns:
+      - name: sales_date
+        tests:
+          - not_null
+      - name: category_id
+        tests:
+          - not_null
+      - name: daily_revenue
+        tests:
+          - not_null
+
+  - name: mart_product_sales
+    description: "Product sales mart. Grain: one row per sales_date and product_id."
+    columns:
+      - name: sales_date
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: quantity_sold
+        tests:
+          - not_null
+
+  - name: mart_customer_ltv
+    description: "Customer lifetime value mart. Grain: one row per customer_id."
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_segment
+        tests:
+          - accepted_values:
+              values: ["high_value", "repeat", "new_or_low"]
+
+  - name: mart_monthly_retention
+    description: "Monthly retention mart by cohort_month, order_month, and customer_segment."
+    columns:
+      - name: cohort_month
+        tests:
+          - not_null
+      - name: order_month
+        tests:
+          - not_null
+      - name: months_since_cohort
+        tests:
+          - not_null
+      - name: customer_segment
+        tests:
+          - not_null
+

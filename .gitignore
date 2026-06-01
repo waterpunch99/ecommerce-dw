@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Environment and secrets
+.env
+*.local
+config/*.json
+!config/*.example.json
+
+# Airflow runtime files
+logs/
+airflow/logs/
+airflow/airflow.db
+airflow/webserver_config.py
+
+# dbt runtime files
+dbt/ecommerce_dw/target/
+dbt/ecommerce_dw/dbt_packages/
+dbt/ecommerce_dw/logs/
+dbt/ecommerce_dw/.user.yml
+dbt/ecommerce_dw/profiles.yml
+
+# Local data outputs
+data/
+tmp/
+*.parquet
+*.csv
+
+# OS and editor
+.DS_Store
+.idea/
+.vscode/
+

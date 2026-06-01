@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: ecommerce_raw
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: "{{ env_var('BQ_RAW_DATASET', 'ecommerce_raw') }}"
+    loaded_at_field: loaded_at
+    freshness:
+      warn_after:
+        count: 24
+        period: hour
+      error_after:
+        count: 48
+        period: hour
+    tables:
+      - name: categories
+      - name: customers
+      - name: products
+      - name: coupons
+      - name: orders
+      - name: order_items
+      - name: payments
+      - name: shipments
+      - name: inventory_snapshots
+      - name: order_status_history
+

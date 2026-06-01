@@ -1,0 +1,160 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "Date dimension. Grain: one row per calendar date."
+    columns:
+      - name: date_day
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_category
+    description: "Category dimension. Grain: one row per category_id."
+    columns:
+      - name: category_id
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_coupon
+    description: "Coupon dimension. Grain: one row per coupon_id."
+    columns:
+      - name: coupon_id
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_customer
+    description: "Customer SCD Type 2 dimension. Grain: one row per customer attribute version."
+    columns:
+      - name: customer_sk
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+      - name: row_hash
+        tests:
+          - not_null
+
+  - name: dim_product
+    description: "Product SCD Type 2 dimension. Grain: one row per product attribute version."
+    columns:
+      - name: product_sk
+        tests:
+          - not_null
+          - unique
+      - name: product_id
+        tests:
+          - not_null
+      - name: row_hash
+        tests:
+          - not_null
+
+  - name: fact_order
+    description: "Order fact. Grain: one row per order_id."
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_id
+      - name: order_status
+        tests:
+          - accepted_values:
+              values: ["created", "paid", "shipped", "delivered", "cancelled", "refunded"]
+
+  - name: fact_order_item
+    description: "Order item fact. Grain: one row per order_item_id."
+    columns:
+      - name: order_item_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_order')
+              field: order_id
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product')
+              field: product_id
+
+  - name: fact_payment
+    description: "Payment fact. Grain: one row per payment_id."
+    columns:
+      - name: payment_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_order')
+              field: order_id
+      - name: payment_status
+        tests:
+          - accepted_values:
+              values: ["authorized", "paid", "failed", "cancelled", "refunded"]
+
+  - name: fact_shipment
+    description: "Shipment fact. Grain: one row per shipment_id."
+    columns:
+      - name: shipment_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_order')
+              field: order_id
+      - name: shipment_status
+        tests:
+          - accepted_values:
+              values: ["ready", "shipped", "delivered", "returned"]
+
+  - name: fact_inventory_snapshot
+    description: "Inventory snapshot fact. Grain: one row per snapshot_date and product_id."
+    columns:
+      - name: snapshot_date
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product')
+              field: product_id
+
+  - name: fact_order_status_history
+    description: "Order status history fact. Grain: one row per order_status_history_id."
+    columns:
+      - name: order_status_history_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_order')
+              field: order_id
+      - name: new_status
+        tests:
+          - accepted_values:
+              values: ["created", "paid", "shipped", "delivered", "cancelled", "refunded"]
+

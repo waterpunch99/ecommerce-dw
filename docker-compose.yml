@@ -1,0 +1,144 @@
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.3-python3.11
+  user: "${AIRFLOW_UID:-1000}:0"
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres_airflow:5432/${AIRFLOW_DB_NAME}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+    BQ_RAW_DATASET: ${BQ_RAW_DATASET}
+    BQ_STAGING_DATASET: ${BQ_STAGING_DATASET}
+    BQ_CORE_DATASET: ${BQ_CORE_DATASET}
+    BQ_MART_DATASET: ${BQ_MART_DATASET}
+    BQ_AUDIT_DATASET: ${BQ_AUDIT_DATASET}
+    SOURCE_POSTGRES_HOST: postgres_source
+    SOURCE_POSTGRES_PORT: 5432
+    SOURCE_POSTGRES_DB: ${SOURCE_POSTGRES_DB}
+    SOURCE_POSTGRES_USER: ${SOURCE_POSTGRES_USER}
+    SOURCE_POSTGRES_PASSWORD: ${SOURCE_POSTGRES_PASSWORD}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./scripts:/opt/airflow/scripts
+    - ./sql:/opt/airflow/sql
+    - ./dbt:/opt/airflow/dbt
+    - ./config:/opt/airflow/config
+    - airflow_logs:/opt/airflow/logs
+  secrets:
+    - source: gcp_service_account
+      target: ecommerce-dw-runner.json
+  depends_on:
+    postgres_airflow:
+      condition: service_healthy
+    postgres_source:
+      condition: service_healthy
+
+services:
+  postgres_source:
+    image: postgres:16
+    container_name: ecommerce_postgres_source
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_DB: ${SOURCE_POSTGRES_DB}
+      POSTGRES_USER: ${SOURCE_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${SOURCE_POSTGRES_PASSWORD}
+    ports:
+      - "${SOURCE_POSTGRES_PORT_HOST}:5432"
+    volumes:
+      - postgres_source_data:/var/lib/postgresql/data
+      - ./sql/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SOURCE_POSTGRES_USER} -d ${SOURCE_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres_airflow:
+    image: postgres:16
+    container_name: ecommerce_postgres_airflow
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_DB: ${AIRFLOW_DB_NAME}
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+    ports:
+      - "${AIRFLOW_POSTGRES_PORT_HOST}:5432"
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: ecommerce_airflow_init
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "$${AIRFLOW_ADMIN_USERNAME}" \
+          --firstname "$${AIRFLOW_ADMIN_FIRSTNAME}" \
+          --lastname "$${AIRFLOW_ADMIN_LASTNAME}" \
+          --role Admin \
+          --email "$${AIRFLOW_ADMIN_EMAIL}" \
+          --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: ecommerce_airflow_webserver
+    command: webserver
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres_airflow:
+        condition: service_healthy
+      postgres_source:
+        condition: service_healthy
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: ecommerce_airflow_scheduler
+    command: scheduler
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres_airflow:
+        condition: service_healthy
+      postgres_source:
+        condition: service_healthy
+
+volumes:
+  postgres_source_data:
+  postgres_airflow_data:
+  airflow_logs:
+
+secrets:
+  gcp_service_account:
+    file: ${GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH}

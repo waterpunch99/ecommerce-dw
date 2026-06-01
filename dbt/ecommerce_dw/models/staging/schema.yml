@@ -1,0 +1,164 @@
+version: 2
+
+models:
+  - name: stg_categories
+    description: "Standardized category source rows. Grain: one row per category_id after latest-row dedupe."
+    columns:
+      - name: category_id
+        tests:
+          - not_null
+          - unique
+      - name: category_name
+        tests:
+          - not_null
+
+  - name: stg_customers
+    description: "Standardized customer source rows. Grain: one row per customer_id after latest-row dedupe."
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+          - unique
+      - name: email
+        tests:
+          - not_null
+      - name: customer_grade
+        tests:
+          - accepted_values:
+              values: ["bronze", "silver", "gold", "vip"]
+
+  - name: stg_products
+    description: "Standardized product source rows. Grain: one row per product_id after latest-row dedupe."
+    columns:
+      - name: product_id
+        tests:
+          - not_null
+          - unique
+      - name: category_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_categories')
+              field: category_id
+      - name: product_status
+        tests:
+          - accepted_values:
+              values: ["active", "inactive", "discontinued"]
+
+  - name: stg_coupons
+    description: "Standardized coupon source rows. Grain: one row per coupon_id after latest-row dedupe."
+    columns:
+      - name: coupon_id
+        tests:
+          - not_null
+          - unique
+      - name: discount_type
+        tests:
+          - accepted_values:
+              values: ["fixed_amount", "percentage"]
+
+  - name: stg_orders
+    description: "Standardized order source rows. Grain: one row per order_id after latest-row dedupe."
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_customers')
+              field: customer_id
+      - name: order_status
+        tests:
+          - accepted_values:
+              values: ["created", "paid", "shipped", "delivered", "cancelled", "refunded"]
+
+  - name: stg_order_items
+    description: "Standardized order item source rows. Grain: one row per order_item_id after latest-row dedupe."
+    columns:
+      - name: order_item_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+
+  - name: stg_payments
+    description: "Standardized payment source rows. Grain: one row per payment_id after latest-row dedupe."
+    columns:
+      - name: payment_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+      - name: payment_status
+        tests:
+          - accepted_values:
+              values: ["authorized", "paid", "failed", "cancelled", "refunded"]
+
+  - name: stg_shipments
+    description: "Standardized shipment source rows. Grain: one row per shipment_id after latest-row dedupe."
+    columns:
+      - name: shipment_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+      - name: shipment_status
+        tests:
+          - accepted_values:
+              values: ["ready", "shipped", "delivered", "returned"]
+
+  - name: stg_inventory_snapshots
+    description: "Standardized inventory snapshots. Grain: one row per snapshot_date and product_id after latest-row dedupe."
+    columns:
+      - name: snapshot_date
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+
+  - name: stg_order_status_history
+    description: "Standardized order status history. Grain: one row per order_status_history_id after latest-row dedupe."
+    columns:
+      - name: order_status_history_id
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+      - name: new_status
+        tests:
+          - accepted_values:
+              values: ["created", "paid", "shipped", "delivered", "cancelled", "refunded"]
+

@@ -1,0 +1,29 @@
+name: ecommerce_dw
+version: "1.0.0"
+config-version: 2
+
+profile: ecommerce_dw
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  ecommerce_dw:
+    staging:
+      +materialized: view
+      +schema: "{{ env_var('BQ_STAGING_DATASET', 'ecommerce_staging') }}"
+      +tags: ["staging"]
+    core:
+      +materialized: table
+      +schema: "{{ env_var('BQ_CORE_DATASET', 'ecommerce_core') }}"
+      +tags: ["core"]
+    mart:
+      +materialized: table
+      +schema: "{{ env_var('BQ_MART_DATASET', 'ecommerce_mart') }}"
+      +tags: ["mart"]
+
