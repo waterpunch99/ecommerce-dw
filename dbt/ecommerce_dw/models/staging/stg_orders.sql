@@ -16,10 +16,9 @@ select
     cast(total_amount as numeric) as total_amount,
     cast(created_at as timestamp) as created_at,
     cast(updated_at as timestamp) as updated_at,
-    cast(is_deleted as bool) as is_deleted,
+    coalesce(cast(is_deleted as bool), false) as is_deleted,
     cast(extract_date as date) as extract_date,
     cast(extracted_at as timestamp) as extracted_at,
     cast(batch_id as string) as batch_id,
     cast(loaded_at as timestamp) as loaded_at
 from source
-

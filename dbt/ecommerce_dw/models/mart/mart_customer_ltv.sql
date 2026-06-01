@@ -18,7 +18,7 @@ with valid_orders as (
         order_status,
         total_amount
     from {{ ref('fact_order') }}
-    where not is_deleted
+    where coalesce(is_deleted, false) = false
       and order_status in ('paid', 'shipped', 'delivered')
 ),
 
@@ -28,7 +28,7 @@ payments as (
         sum(case when payment_status = 'paid' then payment_amount else 0 end) as paid_amount,
         sum(case when payment_status = 'refunded' then payment_amount else 0 end) as refunded_amount
     from {{ ref('fact_payment') }}
-    where not is_deleted
+    where coalesce(is_deleted, false) = false
     group by 1
 ),
 

@@ -67,6 +67,16 @@ Postgres
 - google-cloud-storage
 - google-cloud-bigquery
 
+## Operational Validation
+
+End-to-end 검증 배치 `ops_validation_20260601`에서 Airflow DAG, GCS Raw Zone, BigQuery Mart, dbt test, SQL 품질검증, Audit 테이블까지 확인했습니다.
+
+![Airflow DAG Success](docs/images/01-airflow-dag-success.png)
+
+![BigQuery Mart Query](docs/images/03-bigquery-mart-query.png)
+
+전체 운영 검증 증거는 [docs/validation.md](docs/validation.md)에 정리했습니다.
+
 ## Local Development Environment
 
 로컬 개발 환경은 Docker Compose로 구성합니다.
@@ -538,19 +548,7 @@ dbt test:
 - [Data Quality](docs/data_quality.md)
 - [Operations](docs/operations.md)
 
-## Portfolio Focus
 
-이 프로젝트에서 강조할 점은 단순 ETL 코드가 아니라 실무형 DW 설계 역량입니다.
-
-- 레이어별 책임 분리
-- Fact/Dimension Grain 명시
-- SCD Type 2 설계
-- `updated_at` 기반 증분 적재
-- BigQuery MERGE 기반 Upsert
-- 파티션 단위 Mart 재처리
-- 실패 시 watermark 보존
-- SQL 기반 품질 검증
-- 재실행해도 중복이 발생하지 않는 멱등성
 
 ## SQL Data Quality Checks
 
@@ -664,13 +662,6 @@ docker compose up airflow-init
 docker compose up -d
 ```
 
-## Troubleshooting
-
-- `dbt: command not found`: Airflow 컨테이너의 `_PIP_ADDITIONAL_REQUIREMENTS`에 `dbt-bigquery`가 포함되어 있는지 확인합니다.
-- GCP 인증 오류: `GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH`와 `GOOGLE_APPLICATION_CREDENTIALS` 경로를 확인합니다.
-- Raw Load 실패: GCS URI가 `gs://{bucket}/ecommerce/raw/{table}/extract_date=YYYY-MM-DD/batch_id={batch_id}/{table}.parquet` 규칙을 따르는지 확인합니다.
-- Watermark가 갱신되지 않음: 품질검증 또는 dbt test 실패 여부를 먼저 확인합니다. 실패 시 갱신되지 않는 것이 의도된 동작입니다.
-- Backfill 후 daily watermark가 바뀜: 백필 실행 시 `watermark_mode`가 `preserve`인지 확인합니다.
 
 ## Interview Talking Points
 

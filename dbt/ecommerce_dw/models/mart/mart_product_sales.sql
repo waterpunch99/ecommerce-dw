@@ -15,13 +15,13 @@ with order_items as (
         oi.order_item_id,
         oi.product_id,
         oi.product_sk,
-        oi.category_id,
+        coalesce(oi.category_id, -1) as category_id,
         oi.quantity,
         oi.unit_price,
         oi.discount_amount,
         oi.item_amount
     from {{ ref('fact_order_item') }} as oi
-    where not oi.is_deleted
+    where coalesce(oi.is_deleted, false) = false
 
     {% if mart_start_date and mart_end_date %}
       and oi.order_date between date('{{ mart_start_date }}') and date('{{ mart_end_date }}')
@@ -35,7 +35,7 @@ orders as (
         order_id,
         order_status
     from {{ ref('fact_order') }}
-    where not is_deleted
+    where coalesce(is_deleted, false) = false
 ),
 
 products as (
@@ -63,7 +63,7 @@ select
     p.brand,
     p.product_status,
     oi.category_id,
-    c.category_name,
+    coalesce(c.category_name, 'unknown') as category_name,
     count(distinct oi.order_id) as order_count,
     count(distinct oi.order_item_id) as order_item_count,
     sum(oi.quantity) as quantity_sold,

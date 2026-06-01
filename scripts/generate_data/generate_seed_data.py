@@ -47,6 +47,10 @@ def money(value: float) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def cap_datetime(value: datetime, max_value: datetime) -> datetime:
+    return min(value, max_value)
+
+
 def connect():
     return psycopg2.connect(
         host=os.getenv("SOURCE_POSTGRES_HOST", "localhost"),
@@ -129,12 +133,12 @@ def seed_categories(cur, fake: Faker, base_ts: datetime):
     )
 
 
-def seed_customers(cur, fake: Faker, count: int, start_date: date, end_date: date):
+def seed_customers(cur, fake: Faker, count: int, start_date: date, end_date: date, max_updated_at: datetime):
     rows = []
     for _ in range(count):
         signup_date = fake.date_between(start_date=start_date, end_date=end_date)
         created_at = datetime.combine(signup_date, fake.time_object())
-        updated_at = created_at + timedelta(days=random.randint(0, 20))
+        updated_at = cap_datetime(created_at + timedelta(days=random.randint(0, 20)), max_updated_at)
         rows.append(
             (
                 fake.name(),
@@ -247,7 +251,7 @@ def calculate_coupon_discount(subtotal: Decimal, coupon):
     return min(discount_value, money(float(subtotal) * 0.5))
 
 
-def seed_orders(cur, fake: Faker, count: int, start_date: date, end_date: date):
+def seed_orders(cur, fake: Faker, count: int, start_date: date, end_date: date, max_updated_at: datetime):
     customer_ids = fetch_ids(cur, "customers", "customer_id")
     products = get_product_lookup(cur)
     cur.execute("select coupon_id, discount_type, discount_value from coupons")
@@ -273,7 +277,7 @@ def seed_orders(cur, fake: Faker, count: int, start_date: date, end_date: date):
         shipping_fee = money(0 if subtotal >= 50000 else random.choice([2500, 3000, 3500]))
         total_amount = max(money(0), subtotal - discount_amount + shipping_fee)
         status = random.choices(ORDER_STATUSES, weights=[8, 20, 18, 42, 8, 4], k=1)[0]
-        updated_at = order_at + timedelta(hours=random.randint(0, 96))
+        updated_at = cap_datetime(order_at + timedelta(hours=random.randint(0, 96)), max_updated_at)
         order_rows.append(
             (
                 random.choice(customer_ids),
@@ -308,10 +312,10 @@ def seed_orders(cur, fake: Faker, count: int, start_date: date, end_date: date):
 
     cur.execute("select order_id from orders order by order_id")
     order_ids = [row[0] for row in cur.fetchall()]
-    seed_order_children(cur, fake, order_ids, order_payloads)
+    seed_order_children(cur, fake, order_ids, order_payloads, max_updated_at)
 
 
-def seed_order_children(cur, fake: Faker, order_ids, order_payloads):
+def seed_order_children(cur, fake: Faker, order_ids, order_payloads, max_updated_at: datetime):
     item_rows = []
     payment_rows = []
     shipment_rows = []
@@ -329,7 +333,7 @@ def seed_order_children(cur, fake: Faker, order_ids, order_payloads):
                     discount_amount,
                     item_amount,
                     order_at,
-                    order_at + timedelta(hours=random.randint(0, 12)),
+                    cap_datetime(order_at + timedelta(hours=random.randint(0, 12)), max_updated_at),
                     False,
                 )
             )
@@ -345,7 +349,7 @@ def seed_order_children(cur, fake: Faker, order_ids, order_payloads):
                 payment_at,
                 fake.unique.bothify(text="txn-########-????"),
                 order_at,
-                order_at + timedelta(hours=random.randint(0, 24)),
+                cap_datetime(order_at + timedelta(hours=random.randint(0, 24)), max_updated_at),
                 False,
             )
         )
@@ -362,12 +366,12 @@ def seed_order_children(cur, fake: Faker, order_ids, order_payloads):
                     shipped_at,
                     delivered_at,
                     order_at,
-                    delivered_at or shipped_at,
+                    cap_datetime(delivered_at or shipped_at, max_updated_at),
                     False,
                 )
             )
 
-        history_rows.extend(build_status_history(order_id, order_status, order_at))
+        history_rows.extend(build_status_history(order_id, order_status, order_at, max_updated_at))
 
     execute_batch(
         cur,
@@ -433,7 +437,7 @@ def payment_status_for_order(order_status: str) -> str:
     return random.choice(["authorized", "failed"])
 
 
-def build_status_history(order_id: int, final_status: str, order_at: datetime):
+def build_status_history(order_id: int, final_status: str, order_at: datetime, max_updated_at: datetime):
     paths = {
         "created": ["created"],
         "paid": ["created", "paid"],
@@ -445,7 +449,7 @@ def build_status_history(order_id: int, final_status: str, order_at: datetime):
     rows = []
     previous = None
     for offset, status in enumerate(paths[final_status]):
-        changed_at = order_at + timedelta(hours=offset * random.randint(1, 12))
+        changed_at = cap_datetime(order_at + timedelta(hours=offset * random.randint(1, 12)), max_updated_at)
         rows.append((order_id, previous, status, changed_at, f"status changed to {status}", changed_at, changed_at, False))
         previous = status
     return rows
@@ -614,16 +618,17 @@ def main():
 
     base_ts = datetime.combine(start_date, time(hour=9))
     changed_at = datetime.combine(end_date, time(hour=23, minute=30))
+    max_updated_at = datetime.combine(end_date, time(hour=23, minute=59, second=59))
 
     with connect() as conn:
         with conn.cursor() as cur:
             if args.reset:
                 reset_tables(cur)
             seed_categories(cur, fake, base_ts)
-            seed_customers(cur, fake, args.customers, start_date, end_date)
+            seed_customers(cur, fake, args.customers, start_date, end_date, max_updated_at)
             seed_products(cur, fake, args.products, base_ts)
             seed_coupons(cur, fake, args.coupons, base_ts)
-            seed_orders(cur, fake, args.orders, start_date, end_date)
+            seed_orders(cur, fake, args.orders, start_date, end_date, max_updated_at)
             seed_inventory_snapshots(cur, args.snapshot_days, end_date)
             if args.with_incremental_changes:
                 apply_incremental_changes(cur, fake, changed_at)

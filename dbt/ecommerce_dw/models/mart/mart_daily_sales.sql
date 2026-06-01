@@ -11,8 +11,8 @@
 with item_base as (
     select
         oi.order_date as sales_date,
-        oi.category_id,
-        dc.category_name,
+        coalesce(oi.category_id, -1) as category_id,
+        coalesce(dc.category_name, 'unknown') as category_name,
         oi.order_id,
         oi.order_item_id,
         oi.product_id,
@@ -22,7 +22,7 @@ with item_base as (
     from {{ ref('fact_order_item') }} as oi
     left join {{ ref('dim_category') }} as dc
         on oi.category_id = dc.category_id
-    where not oi.is_deleted
+    where coalesce(oi.is_deleted, false) = false
 
     {% if mart_start_date and mart_end_date %}
       and oi.order_date between date('{{ mart_start_date }}') and date('{{ mart_end_date }}')
@@ -62,7 +62,7 @@ orders as (
         discount_amount as order_discount_amount,
         shipping_fee
     from {{ ref('fact_order') }}
-    where not is_deleted
+    where coalesce(is_deleted, false) = false
 ),
 
 payments as (
@@ -71,7 +71,7 @@ payments as (
         sum(case when payment_status = 'paid' then payment_amount else 0 end) as paid_amount,
         sum(case when payment_status = 'refunded' then payment_amount else 0 end) as refunded_amount
     from {{ ref('fact_payment') }}
-    where not is_deleted
+    where coalesce(is_deleted, false) = false
     group by 1
 )
 

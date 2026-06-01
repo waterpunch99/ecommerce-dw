@@ -14,7 +14,7 @@ with valid_orders as (
         order_id,
         order_date
     from {{ ref('fact_order') }}
-    where not is_deleted
+    where coalesce(is_deleted, false) = false
       and order_status in ('paid', 'shipped', 'delivered')
 ),
 
